@@ -1,7 +1,10 @@
 package com.mcp.infrastructure.web
 
+import io.modelcontextprotocol.client.McpSyncClient
 import org.slf4j.LoggerFactory
-import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.model.ChatModel
+import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.vertexai.gemini.VertexAiGeminiChatOptions
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -13,11 +16,12 @@ data class AskRes(val answer: String)
 @RestController
 @RequestMapping("/chat")
 class McpChatController(
-    private val chat: ChatClient
+    private val chatModel: ChatModel,
+    private val mcpClients: List<McpSyncClient>
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    // 기존 동기 방식 유지
+    // 기존 동기 방식 - 이번엔 tools를 명시적으로 활성화
     @PostMapping("/ask")
     fun ask(@RequestBody req: AskReq): AskRes {
         log.info("=== 채팅 요청 시작 ===")
@@ -25,19 +29,25 @@ class McpChatController(
 
         try {
             val sys = """
-                You are a Korean assistant. Use MCP tools if relevant.
-                - Use 'geocode' for address-to-coordinate.
+                You are a Korean assistant that MUST use MCP tools when relevant.
+                Available tools:
+                - Use 'geocode' for address-to-coordinate conversion.
                 - Use 'localSearch' to find places (returns addresses).
-                Think step-by-step and call tools when needed.
+                
+                IMPORTANT: When a user asks for location information, you MUST call the appropriate tool.
+                Think step-by-step and call tools automatically when needed.
             """.trimIndent()
 
             log.info("시스템 메시지: {}", sys)
 
-            val out = chat.prompt()
-                .system(sys)
-                .user(req.user)
-                .call()
-                .content()
+            // Create options with function calling enabled
+            val options = VertexAiGeminiChatOptions.builder()
+                .temperature(0.2)
+                .build()
+
+            val prompt = Prompt("$sys\n\n사용자: ${req.user}", options)
+            val response = chatModel.call(prompt)
+            val out = response.result.output.text
 
             log.info("AI 응답: {}", out)
             log.info("=== 채팅 요청 완료 ===")
@@ -60,25 +70,31 @@ class McpChatController(
         CompletableFuture.runAsync {
             try {
                 val sys = """
-                    You are a Korean assistant. Use MCP tools if relevant.
-                    - Use 'geocode' for address-to-coordinate.
+                    You are a Korean assistant that MUST use MCP tools when relevant.
+                    Available tools:
+                    - Use 'geocode' for address-to-coordinate conversion.
                     - Use 'localSearch' to find places (returns addresses).
-                    Think step-by-step and call tools when needed.
+                    
+                    IMPORTANT: When a user asks for location information, you MUST call the appropriate tool.
+                    Think step-by-step and call tools automatically when needed.
                 """.trimIndent()
 
+                // Create options with function calling enabled
+                val options = VertexAiGeminiChatOptions.builder()
+                    .temperature(0.2)
+                    .build()
+
                 // 스트리밍 호출
-                val stream = chat.prompt()
-                    .system(sys)
-                    .user(message)
-                    .stream()
-                    .content()
+                val prompt = Prompt("$sys\n\n사용자: $message", options)
+                val stream = chatModel.stream(prompt)
 
                 stream.subscribe(
-                    { chunk ->
+                    { chatResponse ->
+                        val chunk = chatResponse.result.output.text
                         log.debug("스트림 청크: {}", chunk)
                         emitter.send(SseEmitter.event()
                             .name("message")
-                            .data(chunk))
+                            .data(chunk ?: ""))
                     },
                     { error ->
                         log.error("스트리밍 중 오류 발생", error)
