@@ -1,0 +1,48 @@
+spring:
+  main:
+    web-application-type: servlet
+  application:
+    name: mcp-client
+  ai:
+    vertex:
+      ai:
+        gemini:
+          project-id: ${GOOGLE_CLOUD_PROJECT_ID:your-project-id}
+          location: ${GOOGLE_CLOUD_LOCATION:us-central1}
+          chat:
+            options:
+              model: gemini-2.0-flash
+              temperature: 0.2
+
+    mcp:
+      client:
+        enabled: true
+        type: SYNC
+        initialized: true
+        request-timeout: 30s
+        sse:
+          connections:
+            external-mcp:
+              url: http://localhost:8080
+              sse-endpoint: /sse
+        toolcallback:
+          enabled: true
+          
+server:
+  port: 9090
+
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    display-request-duration: true
+
+logging:
+  level:
+    org.springframework.ai.mcp: DEBUG
+    org.modelcontextprotocol: DEBUG
+    org.springframework.ai.chat: DEBUG
+    org.springframework.ai.vertexai: DEBUG
+    com.mcp: DEBUG

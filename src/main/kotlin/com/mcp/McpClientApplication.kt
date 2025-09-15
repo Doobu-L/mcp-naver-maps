@@ -1,11 +1,11 @@
-package com.mcp.mcpnavermaps
+package com.mcp
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 
 @SpringBootApplication
-class McpNaverMapsApplication
+class McpClientApplication
 
 fun main(args: Array<String>) {
-    runApplication<McpNaverMapsApplication>(*args)
+    runApplication<McpClientApplication>(*args)
 }
