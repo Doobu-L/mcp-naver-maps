@@ -1,10 +1,8 @@
 package com.mcp.infrastructure.web
 
-import io.modelcontextprotocol.client.McpSyncClient
 import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.prompt.Prompt
-import org.springframework.ai.vertexai.gemini.VertexAiGeminiChatOptions
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -17,7 +15,6 @@ data class AskRes(val answer: String)
 @RequestMapping("/chat")
 class McpChatController(
     private val chatModel: ChatModel,
-    private val mcpClients: List<McpSyncClient>
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -40,12 +37,7 @@ class McpChatController(
 
             log.info("시스템 메시지: {}", sys)
 
-            // Create options with function calling enabled
-            val options = VertexAiGeminiChatOptions.builder()
-                .temperature(0.2)
-                .build()
-
-            val prompt = Prompt("$sys\n\n사용자: ${req.user}", options)
+            val prompt = Prompt("$sys\n\n사용자: ${req.user}")
             val response = chatModel.call(prompt)
             val out = response.result.output.text
 
@@ -79,13 +71,8 @@ class McpChatController(
                     Think step-by-step and call tools automatically when needed.
                 """.trimIndent()
 
-                // Create options with function calling enabled
-                val options = VertexAiGeminiChatOptions.builder()
-                    .temperature(0.2)
-                    .build()
-
                 // 스트리밍 호출
-                val prompt = Prompt("$sys\n\n사용자: $message", options)
+                val prompt = Prompt("$sys\n\n사용자: $message")
                 val stream = chatModel.stream(prompt)
 
                 stream.subscribe(
